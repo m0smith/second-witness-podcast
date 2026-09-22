@@ -10,7 +10,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const ROOT = path.resolve(__dirname, '..');
-const SCHEDULE = require(path.join(ROOT, 'src/data/cfm-2026-old-testament.json'));
+const SCHEDULE = require(path.join(ROOT, 'data/cfm-2026-old-testament.json'));
 const API = 'https://www.churchofjesuschrist.org/study/api/v3/language-pages/type/content';
 const SITE = 'https://www.churchofjesuschrist.org';
 
@@ -157,7 +157,7 @@ function writeFeed(filename, title, description, week, items) {
     <lastBuildDate>${new Date().toUTCString()}</lastBuildDate>
 ${rssItems}
   </channel></rss>\n`;
-  const outDir = path.join(ROOT, 'docs');
+  const outDir = ROOT;
   fs.mkdirSync(outDir, { recursive: true });
   fs.writeFileSync(path.join(outDir, filename), rss);
 }
