@@ -53,19 +53,26 @@ function expandReading(reading) {
       spec = match[2];
     } else if (continuation && currentBook) {
       spec = continuation[1];
+    } else if (BOOKS[part]) {
+      currentBook = part;
+      spec = null;
     } else {
       throw new Error(`Unsupported reading segment: ${part}`);
     }
     if (!BOOKS[currentBook]) throw new Error(`Unknown book: ${currentBook}`);
-    const [start, end = start] = spec.split(/[–-]/).map(Number);
-    for (let chapter = start; chapter <= end; chapter++) result.push({ book: currentBook, chapter });
+    if (spec) {
+      const [start, end = start] = spec.split(/[–-]/).map(Number);
+      for (let chapter = start; chapter <= end; chapter++) result.push({ book: currentBook, chapter });
+    } else {
+      result.push({ book: currentBook, chapter: null });
+    }
   }
   return result;
 }
 
 async function resolveAudio({ book, chapter }) {
   const [slug, volume] = BOOKS[book];
-  const uri = `/scriptures/${volume}/${slug}/${chapter}`;
+  const uri = chapter == null ? `/scriptures/${volume}/${slug}` : `/scriptures/${volume}/${slug}/${chapter}`;
   const url = new URL(API);
   url.searchParams.set('lang', 'eng');
   url.searchParams.set('uri', uri);
@@ -174,7 +181,7 @@ async function main() {
   for (const chapter of chapters) {
     const media = await resolveAudio(chapter);
     scriptureItems.push({
-      title: `${chapter.book} ${chapter.chapter}`,
+      title: chapter.chapter == null ? chapter.book : `${chapter.book} ${chapter.chapter}`,
       ...media
     });
     process.stdout.write(`Resolved ${chapter.book} ${chapter.chapter}\n`);
