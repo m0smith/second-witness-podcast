@@ -13,7 +13,23 @@ const ROOT = path.resolve(__dirname, '..');
 const SCHEDULE = require(path.join(ROOT, 'data/cfm-2026-old-testament.json'));
 const API = 'https://www.churchofjesuschrist.org/study/api/v3/language-pages/type/content';
 const SITE = 'https://www.churchofjesuschrist.org';
-const WEB_AUDIO_BASE = 'https://ebible.org/webaudio';
+const WEB_AUDIO_BASE = 'https://ebible.org/engwebu/mp3/';
+const WEB_TEXT_BASE = 'https://ebible.org/engwebu/';
+const WEB_BOOK_CODES = {
+  Genesis: ['02','GEN'], Exodus: ['03','EXO'], Leviticus: ['04','LEV'],
+  Numbers: ['05','NUM'], Deuteronomy: ['06','DEU'], Joshua: ['07','JOS'],
+  Judges: ['08','JDG'], Ruth: ['09','RUT'], '1 Samuel': ['10','1SA'],
+  '2 Samuel': ['11','2SA'], '1 Kings': ['12','1KI'], '2 Kings': ['13','2KI'],
+  '1 Chronicles': ['14','1CH'], '2 Chronicles': ['15','2CH'], Ezra: ['16','EZR'],
+  Nehemiah: ['17','NEH'], Esther: ['18','EST'], Job: ['19','JOB'],
+  Psalms: ['20','PSA'], Proverbs: ['21','PRO'], Ecclesiastes: ['22','ECC'],
+  Isaiah: ['24','ISA'], Jeremiah: ['25','JER'], Lamentations: ['26','LAM'],
+  Ezekiel: ['27','EZK'], Daniel: ['28','DAN'], Hosea: ['29','HOS'],
+  Joel: ['30','JOL'], Amos: ['31','AMO'], Obadiah: ['32','OBA'],
+  Jonah: ['33','JON'], Micah: ['34','MIC'], Nahum: ['35','NAM'],
+  Habakkuk: ['36','HAB'], Zephaniah: ['37','ZEP'], Haggai: ['38','HAG'],
+  Zechariah: ['39','ZEC'], Malachi: ['40','MAL'],
+};
 
 const BOOK_CHAPTERS = {
   Genesis: 50, Exodus: 40, Leviticus: 27, Numbers: 36, Deuteronomy: 34,
@@ -98,30 +114,20 @@ async function resolveAudio({ book, chapter }) {
   return { mediaUrl, pageUrl: `${SITE}/study${uri}?lang=eng` };
 }
 
-function webAudioFor({ book, chapter }) {
-  // eBible's public-domain WEB audio is organized by canonical book/chapter.
-  // Resolve the exact media URL at generation time so the RSS enclosure points
-  // directly at the public-domain recording.
-  return { book, chapter };
-}
-
 async function resolveWebAudio({ book, chapter }) {
-  const page = await fetch(`${WEB_AUDIO_BASE}/`);
-  if (!page.ok) throw new Error(`${page.status} loading WEB audio index`);
-  const html = await page.text();
-  const bookPattern = book.replace(/[.*+?^$()|[\]\\]/g, '\\function xml(s) {').replace('Psalms', 'Psalm');
-  const chapterPattern = String(chapter);
-  const hrefs = [...html.matchAll(/href=["']([^"']+\.mp3)["']/gi)].map(m => m[1]);
-  const normalized = s => decodeURIComponent(s).replace(/[_-]+/g, ' ');
-  const href = hrefs.find(h => {
-    const n = normalized(h);
-    return new RegExp(`\\b${bookPattern}\\b`, 'i').test(n) &&
-      new RegExp(`\\b0*${chapterPattern}\\b`).test(n);
-  });
-  if (!href) throw new Error(`No WEB audio URL found for ${book} ${chapter}`);
+  const code = WEB_BOOK_CODES[book];
+  if (!code) throw new Error(`No WEB book code for ${book}`);
+  const [number, abbreviation] = code;
+  const chapterPadded = String(chapter).padStart(2, '0');
+  const mediaUrl = `${WEB_AUDIO_BASE}${number}_${abbreviation}_${chapterPadded}.mp3`;
+
+  // Validate the published chapter URL without downloading the MP3.
+  const response = await fetch(mediaUrl, { method: 'HEAD', redirect: 'follow' });
+  if (!response.ok) throw new Error(`No WEB audio URL found for ${book} ${chapter}: ${response.status} ${mediaUrl}`);
+
   return {
-    mediaUrl: new URL(href, WEB_AUDIO_BASE + '/').href,
-    pageUrl: 'https://ebible.org/web/'
+    mediaUrl,
+    pageUrl: `${WEB_TEXT_BASE}${abbreviation}${chapterPadded}.htm`
   };
 }
 
@@ -243,7 +249,7 @@ async function main() {
 
   const webItems = [];
   for (const chapter of chapters) {
-    const media = await resolveWebAudio(webAudioFor(chapter));
+    const media = await resolveWebAudio(chapter);
     webItems.push({ title: `${chapter.book} ${chapter.chapter} — World English Bible`, ...media });
   }
 
