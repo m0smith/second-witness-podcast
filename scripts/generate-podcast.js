@@ -209,7 +209,7 @@ async function linkedAudioForLesson(week) {
         mediaUrl,
         pageUrl: `${SITE}/study${uri}?lang=eng`,
         uri,
-        liahona: uri.startsWith('/general-conference/')
+        liahona: uri.startsWith('/general-conference/') || uri.startsWith('/liahona/') || uri.includes('/magazines/')
       });
     } catch (error) {
       console.warn('Skipping linked asset', uri, error.message);
@@ -307,13 +307,15 @@ async function main() {
   }
 
   const linked = await linkedAudioForLesson(week);
-  // Put the lesson first so it is immediately available on day 1.
-  const allItems = [...lessonItems, ...scriptureItems, ...linked];
   const liahonaItems = linked.filter(item => item.liahona);
-  const visibleAllItems = itemsThroughToday(allItems, week, date);
-  // Keep the referenced-resource feed complete for the current lesson. These
-  // items are few and are already supplemental to the progressively released
-  // scripture feed; hiding a cited talk made the feed appear incomplete.
+  const otherLinkedItems = linked.filter(item => !item.liahona);
+
+  // The complete feed always includes the lesson and all referenced
+  // Liahona/general-conference audio. Scripture and other supplemental audio
+  // continue to release progressively through the week.
+  const progressiveItems = itemsThroughToday([...scriptureItems, ...otherLinkedItems], week, date);
+  const allItems = [...lessonItems, ...scriptureItems, ...linked];
+  const visibleAllItems = [...lessonItems, ...progressiveItems, ...liahonaItems];
   const visibleLiahonaItems = liahonaItems;
   const visibleWebItems = itemsThroughToday(webItems, week, date);
 
