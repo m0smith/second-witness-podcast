@@ -34,5 +34,10 @@ jobs:
             echo "Feeds are already current."
           else
             git commit -m "Update podcast feeds"
-            git push
+            # The workflow file or generator may have changed after this run
+            # checked out main. Rebase the generated-feed commit onto the
+            # latest main before pushing so concurrent repository updates do
+            # not cause a non-fast-forward failure.
+            git pull --rebase origin main
+            git push origin main
           fi
