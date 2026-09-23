@@ -184,7 +184,10 @@ async function main() {
   const allItems = [...scriptureItems, ...linked];
   const liahonaItems = linked.filter(item => item.liahona);
   const visibleAllItems = itemsThroughToday(allItems, week, date);
-  const visibleLiahonaItems = itemsThroughToday(liahonaItems, week, date);
+  // Keep the referenced-resource feed complete for the current lesson. These
+  // items are few and are already supplemental to the progressively released
+  // scripture feed; hiding a cited talk made the feed appear incomplete.
+  const visibleLiahonaItems = liahonaItems;
 
   writeFeed(
     'podcast.xml',
@@ -201,8 +204,8 @@ async function main() {
     visibleLiahonaItems
   );
 
-  console.log(`Wrote docs/podcast.xml: ${visibleAllItems.length}/${allItems.length} episodes released through day ${dayNumber(week, date)}`);
-  console.log(`Wrote docs/liahona.xml: ${visibleLiahonaItems.length}/${liahonaItems.length} referenced Liahona/general conference messages released`);
+  console.log(`Wrote podcast.xml: ${visibleAllItems.length}/${allItems.length} episodes released through day ${dayNumber(week, date)}`);
+  console.log(`Wrote liahona.xml: ${visibleLiahonaItems.length}/${liahonaItems.length} referenced Liahona/general conference messages released`);
 }
 
 main().catch(error => {
