@@ -13,22 +13,19 @@ const ROOT = path.resolve(__dirname, '..');
 const SCHEDULE = require(path.join(ROOT, 'data/cfm-2026-old-testament.json'));
 const API = 'https://www.churchofjesuschrist.org/study/api/v3/language-pages/type/content';
 const SITE = 'https://www.churchofjesuschrist.org';
-const WEB_AUDIO_BASE = 'https://ebible.org/engwebu/mp3/';
-const WEB_TEXT_BASE = 'https://ebible.org/engwebu/';
-const WEB_BOOK_CODES = {
-  Genesis: ['02','GEN'], Exodus: ['03','EXO'], Leviticus: ['04','LEV'],
-  Numbers: ['05','NUM'], Deuteronomy: ['06','DEU'], Joshua: ['07','JOS'],
-  Judges: ['08','JDG'], Ruth: ['09','RUT'], '1 Samuel': ['10','1SA'],
-  '2 Samuel': ['11','2SA'], '1 Kings': ['12','1KI'], '2 Kings': ['13','2KI'],
-  '1 Chronicles': ['14','1CH'], '2 Chronicles': ['15','2CH'], Ezra: ['16','EZR'],
-  Nehemiah: ['17','NEH'], Esther: ['18','EST'], Job: ['19','JOB'],
-  Psalms: ['20','PSA'], Proverbs: ['21','PRO'], Ecclesiastes: ['22','ECC'],
-  Isaiah: ['24','ISA'], Jeremiah: ['25','JER'], Lamentations: ['26','LAM'],
-  Ezekiel: ['27','EZK'], Daniel: ['28','DAN'], Hosea: ['29','HOS'],
-  Joel: ['30','JOL'], Amos: ['31','AMO'], Obadiah: ['32','OBA'],
-  Jonah: ['33','JON'], Micah: ['34','MIC'], Nahum: ['35','NAM'],
-  Habakkuk: ['36','HAB'], Zephaniah: ['37','ZEP'], Haggai: ['38','HAG'],
-  Zechariah: ['39','ZEC'], Malachi: ['40','MAL'],
+const WEB_AUDIO_INDEX = 'https://ebible.org/eng-web/audio/';
+const WEB_TEXT_BASE = 'https://ebible.org/eng-web/';
+const WEB_AUDIO_BOOK_NAMES = {
+  Genesis:'Genesis', Exodus:'Exodus', Leviticus:'Leviticus', Numbers:'Numbers',
+  Deuteronomy:'Deuteronomy', Joshua:'Joshua', Judges:'Judges', Ruth:'Ruth',
+  '1 Samuel':'First Samuel', '2 Samuel':'Second Samuel', '1 Kings':'First Kings',
+  '2 Kings':'Second Kings', '1 Chronicles':'First Chronicles', '2 Chronicles':'Second Chronicles',
+  Ezra:'Ezra', Nehemiah:'Nehemiah', Esther:'Esther', Job:'Job', Psalms:'Psalms',
+  Proverbs:'Proverbs', Ecclesiastes:'Ecclesiastes', Isaiah:'Isaiah', Jeremiah:'Jeremiah',
+  Lamentations:'Lamentations', Ezekiel:'Ezekiel', Daniel:'Daniel', Hosea:'Hosea',
+  Joel:'Joel', Amos:'Amos', Obadiah:'Obadiah', Jonah:'Jonah', Micah:'Micah',
+  Nahum:'Nahum', Habakkuk:'Habakkuk', Zephaniah:'Zephaniah', Haggai:'Haggai',
+  Zechariah:'Zechariah', Malachi:'Malachi'
 };
 
 const BOOK_CHAPTERS = {
@@ -114,20 +111,60 @@ async function resolveAudio({ book, chapter }) {
   return { mediaUrl, pageUrl: `${SITE}/study${uri}?lang=eng` };
 }
 
+let webAudioIndexCache;
+const webBookPageCache = new Map();
+
+async function fetchHtml(url) {
+  const response = await fetch(url, { redirect: 'follow' });
+  if (!response.ok) throw new Error(`${response.status} loading ${url}`);
+  return response.text();
+}
+
+function decodeHtml(s) {
+  return s.replace(/&amp;/g, '&').replace(/&#39;/g, "'").replace(/&quot;/g, '"');
+}
+
+function linksFromHtml(html, base) {
+  return [...html.matchAll(/href=["']([^"']+)["'][^>]*>([^<]+)<\/a>/gi)].map(m => ({
+    href: new URL(decodeHtml(m[1]), base).href,
+    text: decodeHtml(m[2]).trim()
+  }));
+}
+
 async function resolveWebAudio({ book, chapter }) {
-  const code = WEB_BOOK_CODES[book];
-  if (!code) throw new Error(`No WEB book code for ${book}`);
-  const [number, abbreviation] = code;
-  const chapterPadded = String(chapter).padStart(2, '0');
-  const mediaUrl = `${WEB_AUDIO_BASE}${number}_${abbreviation}_${chapterPadded}.mp3`;
+  if (!webAudioIndexCache) webAudioIndexCache = await fetchHtml(WEB_AUDIO_INDEX);
+  const wantedBook = WEB_AUDIO_BOOK_NAMES[book];
+  if (!wantedBook) throw new Error(`No WEB audio book mapping for ${book}`);
 
-  // Validate the published chapter URL without downloading the MP3.
-  const response = await fetch(mediaUrl, { method: 'HEAD', redirect: 'follow' });
-  if (!response.ok) throw new Error(`No WEB audio URL found for ${book} ${chapter}: ${response.status} ${mediaUrl}`);
+  const bookLink = linksFromHtml(webAudioIndexCache, WEB_AUDIO_INDEX)
+    .find(link => link.text.toLowerCase() === wantedBook.toLowerCase());
+  if (!bookLink) throw new Error(`No WEB audio directory found for ${book}`);
 
+  let bookHtml = webBookPageCache.get(bookLink.href);
+  if (!bookHtml) {
+    bookHtml = await fetchHtml(bookLink.href);
+    webBookPageCache.set(bookLink.href, bookHtml);
+  }
+
+  const mp3s = linksFromHtml(bookHtml, bookLink.href).filter(link => /\.mp3$/i.test(link.href));
+  // These directory pages contain one recording per chapter in chapter order.
+  // Some historical filenames contain typos/duplicate sequence numbers, so do
+  // not manufacture filenames; resolve from the publisher's directory listing.
+  const unique = [];
+  const seen = new Set();
+  for (const item of mp3s) {
+    const normalized = item.text.replace(/ \(\d+\)(?=\.mp3$)/i, '');
+    if (seen.has(normalized)) continue;
+    seen.add(normalized);
+    unique.push(item);
+  }
+  const item = unique[chapter - 1];
+  if (!item) throw new Error(`No WEB audio URL found for ${book} ${chapter}`);
+
+  const abbreviation = BOOKS[book];
   return {
-    mediaUrl,
-    pageUrl: `${WEB_TEXT_BASE}${abbreviation}${chapterPadded}.htm`
+    mediaUrl: item.href,
+    pageUrl: abbreviation ? `${WEB_TEXT_BASE}${abbreviation.toUpperCase()}${String(chapter).padStart(2,'0')}.htm` : WEB_AUDIO_INDEX
   };
 }
 
