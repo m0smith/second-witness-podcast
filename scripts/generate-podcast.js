@@ -13,6 +13,7 @@ const ROOT = path.resolve(__dirname, '..');
 const SCHEDULE = require(path.join(ROOT, 'data/cfm-2026-old-testament.json'));
 const API = 'https://www.churchofjesuschrist.org/study/api/v3/language-pages/type/content';
 const SITE = 'https://www.churchofjesuschrist.org';
+const WEB_AUDIO_BASE = 'https://ebible.org/webaudio';
 
 const BOOK_CHAPTERS = {
   Genesis: 50, Exodus: 40, Leviticus: 27, Numbers: 36, Deuteronomy: 34,
@@ -95,6 +96,33 @@ async function resolveAudio({ book, chapter }) {
   const mediaUrl = audio.map(a => a.mediaUrl).find(Boolean);
   if (!mediaUrl) throw new Error(`No audio URL for ${book} ${chapter}`);
   return { mediaUrl, pageUrl: `${SITE}/study${uri}?lang=eng` };
+}
+
+function webAudioFor({ book, chapter }) {
+  // eBible's public-domain WEB audio is organized by canonical book/chapter.
+  // Resolve the exact media URL at generation time so the RSS enclosure points
+  // directly at the public-domain recording.
+  return { book, chapter };
+}
+
+async function resolveWebAudio({ book, chapter }) {
+  const page = await fetch(`${WEB_AUDIO_BASE}/`);
+  if (!page.ok) throw new Error(`${page.status} loading WEB audio index`);
+  const html = await page.text();
+  const bookPattern = book.replace(/[.*+?^$()|[\]\\]/g, '\\function xml(s) {').replace('Psalms', 'Psalm');
+  const chapterPattern = String(chapter);
+  const hrefs = [...html.matchAll(/href=["']([^"']+\.mp3)["']/gi)].map(m => m[1]);
+  const normalized = s => decodeURIComponent(s).replace(/[_-]+/g, ' ');
+  const href = hrefs.find(h => {
+    const n = normalized(h);
+    return new RegExp(`\\b${bookPattern}\\b`, 'i').test(n) &&
+      new RegExp(`\\b0*${chapterPattern}\\b`).test(n);
+  });
+  if (!href) throw new Error(`No WEB audio URL found for ${book} ${chapter}`);
+  return {
+    mediaUrl: new URL(href, WEB_AUDIO_BASE + '/').href,
+    pageUrl: 'https://ebible.org/web/'
+  };
 }
 
 function xml(s) {
@@ -213,6 +241,12 @@ async function main() {
     process.stdout.write(`Resolved ${chapter.book} ${chapter.chapter}\n`);
   }
 
+  const webItems = [];
+  for (const chapter of chapters) {
+    const media = await resolveWebAudio(webAudioFor(chapter));
+    webItems.push({ title: `${chapter.book} ${chapter.chapter} — World English Bible`, ...media });
+  }
+
   const linked = await linkedAudioForLesson(week);
   const allItems = [...scriptureItems, ...linked];
   const liahonaItems = linked.filter(item => item.liahona);
@@ -221,6 +255,7 @@ async function main() {
   // items are few and are already supplemental to the progressively released
   // scripture feed; hiding a cited talk made the feed appear incomplete.
   const visibleLiahonaItems = liahonaItems;
+  const visibleWebItems = itemsThroughToday(webItems, week, date);
 
   writeFeed(
     'podcast.xml',
@@ -228,6 +263,13 @@ async function main() {
     'Weekly scriptures plus audio-capable resources referenced by the Come, Follow Me lesson.',
     week,
     visibleAllItems
+  );
+  writeFeed(
+    'web.xml',
+    'Come, Follow Me — World English Bible',
+    'Weekly Come, Follow Me readings in the public-domain World English Bible.',
+    week,
+    visibleWebItems
   );
   writeFeed(
     'liahona.xml',
@@ -238,6 +280,7 @@ async function main() {
   );
 
   console.log(`Wrote podcast.xml: ${visibleAllItems.length}/${allItems.length} episodes released through day ${dayNumber(week, date)}`);
+  console.log(`Wrote web.xml: ${visibleWebItems.length}/${webItems.length} World English Bible episodes released`);
   console.log(`Wrote liahona.xml: ${visibleLiahonaItems.length}/${liahonaItems.length} referenced Liahona/general conference messages released`);
 }
 
