@@ -161,10 +161,11 @@ async function resolveWebAudio({ book, chapter }) {
   const item = unique[chapter - 1];
   if (!item) throw new Error(`No WEB audio URL found for ${book} ${chapter}`);
 
-  const abbreviation = BOOKS[book];
+  const bookInfo = BOOKS[book];
+  const abbreviation = Array.isArray(bookInfo) ? bookInfo[0] : bookInfo;
   return {
     mediaUrl: item.href,
-    pageUrl: abbreviation ? `${WEB_TEXT_BASE}${abbreviation.toUpperCase()}${String(chapter).padStart(2,'0')}.htm` : WEB_AUDIO_INDEX
+    pageUrl: abbreviation ? `${WEB_TEXT_BASE}${String(abbreviation).toUpperCase()}${String(chapter).padStart(2,'0')}.htm` : WEB_AUDIO_INDEX
   };
 }
 
