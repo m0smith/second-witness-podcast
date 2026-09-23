@@ -291,8 +291,24 @@ async function main() {
     webItems.push({ title: `${chapter.book} ${chapter.chapter} — World English Bible`, ...media });
   }
 
+  // The lesson itself is part of the complete feed, not merely the resources
+  // it links to. Church study content exposes an official audio rendition when
+  // one is available.
+  const lessonUri = `/manual/come-follow-me-for-home-and-church-old-testament-2026/${week.week}`;
+  const lesson = await fetchContent(lessonUri);
+  const lessonMediaUrl = (lesson?.meta?.audio || []).map(a => a.mediaUrl).find(Boolean);
+  const lessonItems = lessonMediaUrl ? [{
+    title: lesson?.meta?.title || lesson?.title || `Come, Follow Me — ${week.label}`,
+    mediaUrl: lessonMediaUrl,
+    pageUrl: `${SITE}/study${lessonUri}?lang=eng`
+  }] : [];
+  if (!lessonItems.length) {
+    console.warn(`No official lesson audio found for ${lessonUri}`);
+  }
+
   const linked = await linkedAudioForLesson(week);
-  const allItems = [...scriptureItems, ...linked];
+  // Put the lesson first so it is immediately available on day 1.
+  const allItems = [...lessonItems, ...scriptureItems, ...linked];
   const liahonaItems = linked.filter(item => item.liahona);
   const visibleAllItems = itemsThroughToday(allItems, week, date);
   // Keep the referenced-resource feed complete for the current lesson. These
@@ -304,7 +320,7 @@ async function main() {
   writeFeed(
     'podcast.xml',
     'Come, Follow Me — Complete Audio',
-    'Weekly scriptures plus audio-capable resources referenced by the Come, Follow Me lesson.',
+    'The weekly Come, Follow Me lesson, assigned scriptures, and audio-capable resources referenced by the lesson.',
     week,
     visibleAllItems
   );
