@@ -310,14 +310,12 @@ async function main() {
   const liahonaItems = linked.filter(item => item.liahona);
   const otherLinkedItems = linked.filter(item => !item.liahona);
 
-  // The complete feed always includes the lesson and all referenced
-  // Liahona/general-conference audio. Scripture and other supplemental audio
-  // continue to release progressively through the week.
-  const progressiveItems = itemsThroughToday([...scriptureItems, ...otherLinkedItems], week, date);
+  // Publish the complete week's content in one batch. The workflow runs once
+  // per week, so subscribers see the lesson and all available resources at once.
   const allItems = [...lessonItems, ...scriptureItems, ...linked];
-  const visibleAllItems = [...lessonItems, ...progressiveItems, ...liahonaItems];
+  const visibleAllItems = allItems;
   const visibleLiahonaItems = liahonaItems;
-  const visibleWebItems = itemsThroughToday(webItems, week, date);
+  const visibleWebItems = webItems;
 
   writeFeed(
     'podcast.xml',
@@ -341,9 +339,9 @@ async function main() {
     visibleLiahonaItems
   );
 
-  console.log(`Wrote podcast.xml: ${visibleAllItems.length}/${allItems.length} episodes released through day ${dayNumber(week, date)}`);
-  console.log(`Wrote web.xml: ${visibleWebItems.length}/${webItems.length} World English Bible episodes released`);
-  console.log(`Wrote liahona.xml: ${visibleLiahonaItems.length}/${liahonaItems.length} referenced Liahona/general conference messages released`);
+  console.log(`Wrote podcast.xml: ${visibleAllItems.length} episodes for ${week.label}`);
+  console.log(`Wrote web.xml: ${visibleWebItems.length} World English Bible episodes for ${week.label}`);
+  console.log(`Wrote liahona.xml: ${visibleLiahonaItems.length} referenced Liahona/general conference messages for ${week.label}`);
 }
 
 main().catch(error => {
