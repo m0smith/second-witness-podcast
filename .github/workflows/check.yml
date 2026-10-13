@@ -1,0 +1,32 @@
+name: Check
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax check
+        run: node --check scripts/generate-podcast.js
+      - name: Unit tests (offline)
+        run: node --test "test/*.test.js"
+      - name: Generated feeds are not hand-edited
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          changed=$(git diff --name-only "$BASE_SHA" HEAD)
+          echo "Changed files:"; echo "$changed"
+          if echo "$changed" | grep -Eq '^(podcast|liahona|web)\.xml$'; then
+            echo "::error::Generated feed files must only be changed by the scheduled workflow."
+            exit 1
+          fi

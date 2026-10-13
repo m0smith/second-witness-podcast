@@ -350,7 +350,13 @@ async function main() {
   console.log(`Wrote liahona.xml: ${visibleLiahonaItems.length} referenced Liahona/general conference messages for ${week.label}`);
 }
 
-main().catch(error => {
-  console.error(error);
-  process.exitCode = 1;
-});
+if (require.main === module) {
+  main().catch(error => {
+    console.error(error);
+    process.exitCode = 1;
+  });
+}
+
+module.exports = {
+  parseDate, weekForDate, expandReading, dayNumber, itemsThroughToday, xml, linksFromHtml,
+};

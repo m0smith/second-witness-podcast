@@ -23,6 +23,9 @@ jobs:
             echo "Validating $d"
             node scripts/generate-podcast.js --date "$d" >/dev/null
           done
+          # Validation rewrites the feed files for each date; discard that output so
+          # only the real generate step below (or nothing) can change published feeds.
+          git checkout -- podcast.xml liahona.xml web.xml
 
       - name: Generate current feeds
         run: node scripts/generate-podcast.js
