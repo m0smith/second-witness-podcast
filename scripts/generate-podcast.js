@@ -287,8 +287,14 @@ async function main() {
 
   const webItems = [];
   for (const chapter of chapters) {
-    const media = await resolveWebAudio(chapter);
-    webItems.push({ title: `${chapter.book} ${chapter.chapter} — World English Bible`, ...media });
+    try {
+      const media = await resolveWebAudio(chapter);
+      webItems.push({ title: `${chapter.book} ${chapter.chapter} — World English Bible`, ...media });
+    } catch (error) {
+      console.warn(`WEB audio unavailable: ${error.message}; retaining previous WEB feed`);
+      webItems.length = 0;
+      break;
+    }
   }
 
   // The lesson itself is part of the complete feed, not merely the resources
@@ -324,7 +330,7 @@ async function main() {
     week,
     visibleAllItems
   );
-  writeFeed(
+  if (webItems.length === chapters.length) writeFeed(
     'web.xml',
     'Come, Follow Me — World English Bible',
     'Weekly Come, Follow Me readings in the public-domain World English Bible.',
